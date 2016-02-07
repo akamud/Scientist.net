@@ -101,5 +101,56 @@ public class TheScientistClass
             Assert.True(((InMemoryObservationPublisher)Scientist.ObservationPublisher).Observations.First(m => m.Name == "success").ControlDuration.Ticks > 0);
             Assert.True(((InMemoryObservationPublisher)Scientist.ObservationPublisher).Observations.First(m => m.Name == "success").CandidateDuration.Ticks > 0);
         }
+
+        [Fact]
+        public void RunsBothBranchesOfTheExperimentWithCustomComparatorAndReportsSuccess()
+        {
+            bool candidateRan = false;
+            bool controlRan = false;
+
+            // We introduce side effects for testing. Don't do this in real life please.
+            // Do we do a deep comparison?
+            Func<int> control = () => { controlRan = true; return 42; };
+            Func<int> candidate = () => { candidateRan = true; return 42; };
+
+            var result = Scientist.Science<int>("success", experiment =>
+            {
+                experiment.Use(control);
+                experiment.Try(candidate);
+            }, (controlResult, candidateResult) =>
+            {
+                return controlResult == candidateResult;
+            });
+
+            Assert.Equal(42, result);
+            Assert.True(candidateRan);
+            Assert.True(controlRan);
+            Assert.True(((InMemoryObservationPublisher)Scientist.ObservationPublisher).Observations.First(m => m.Name == "success").Success);
+        }
+
+        [Fact]
+        public async Task RunsBothBranchesOfTheExperimentAsyncWithCustomComparatorAndReportsFailure()
+        {
+            bool candidateRan = false;
+            bool controlRan = false;
+
+            // We introduce side effects for testing. Don't do this in real life please.
+            Func<Task<int>> control = () => { controlRan = true; return Task.FromResult(42); };
+            Func<Task<int>> candidate = () => { candidateRan = true; return Task.FromResult(43); };
+
+            var result = await Scientist.ScienceAsync<int>("failure", experiment =>
+            {
+                experiment.Use(control);
+                experiment.Try(candidate);
+            }, (controlResult, candidateResult) =>
+            {
+                return Task.FromResult(controlResult == candidateResult);
+            });
+
+            Assert.Equal(42, result);
+            Assert.True(candidateRan);
+            Assert.True(controlRan);
+            Assert.False(TestHelper.Observation.First(m => m.Name == "failure").Success);
+        }
     }
 }

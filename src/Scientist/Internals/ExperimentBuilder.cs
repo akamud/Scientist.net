@@ -8,10 +8,24 @@ namespace GitHub.Internals
         string _name;
         Func<Task<T>> _control;
         Func<Task<T>> _candidate;
+        Func<T, T, Task<bool>> _comparator;
 
         public Experiment(string name)
         {
             _name = name;
+        }
+
+        public Experiment(string name, Func<T, T, bool> comparator)
+        {
+            _name = name;
+            if (comparator != null)
+                _comparator = (controlResult, candidateResult) => Task.FromResult(comparator(controlResult, candidateResult));
+        }
+
+        public Experiment(string name, Func<T, T, Task<bool>> comparator)
+        {
+            _name = name;
+            _comparator = comparator;
         }
 
         public void Use(Func<Task<T>> control) { _control = control; }
@@ -25,7 +39,7 @@ namespace GitHub.Internals
 
         internal ExperimentInstance<T> Build()
         {
-            return new ExperimentInstance<T>(_name, _control, _candidate);
+            return new ExperimentInstance<T>(_name, _control, _candidate, _comparator);
         }
     }
 }

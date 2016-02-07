@@ -29,11 +29,11 @@ namespace GitHub
         /// <param name="experiment">Experiment callback used to configure the experiment</param>
         /// <returns>The value of the experiment's contrtol function.</returns>
         [return: AllowNull]
-        public static T Science<T>(string name, Action<IExperiment<T>> experiment)
+        public static T Science<T>(string name, Action<IExperiment<T>> experiment, Func<T, T, bool> comparator = null)
         {
             // TODO: Maybe we could automatically generate the name if none is provided using the calling method name. We'd have to 
             // make sure we don't inline this method though.
-            var experimentBuilder = new Experiment<T>(name);
+            var experimentBuilder = new Experiment<T>(name, comparator);
             
             experiment(experimentBuilder);
 
@@ -48,9 +48,9 @@ namespace GitHub
         /// <param name="experiment">Experiment callback used to configure the experiment</param>
         /// <returns>The value of the experiment's contrtol function.</returns>
         [return: AllowNull]
-        public static Task<T> ScienceAsync<T>(string name, Action<IExperimentAsync<T>> experiment)
+        public static Task<T> ScienceAsync<T>(string name, Action<IExperimentAsync<T>> experiment, Func<T, T, Task<bool>> comparator = null)
         {
-            var experimentBuilder = new Experiment<T>(name);
+            var experimentBuilder = new Experiment<T>(name, comparator);
             
             experiment(experimentBuilder);
 

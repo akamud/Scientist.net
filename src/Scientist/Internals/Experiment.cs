@@ -15,19 +15,23 @@ namespace GitHub.Internals
         readonly Func<Task<T>> _control;
         readonly Func<Task<T>> _candidate;
         readonly string _name;
+        readonly Func<T, T, Task<bool>> _comparator;
 
-        public ExperimentInstance(string name, Func<T> control, Func<T> candidate)
+        public ExperimentInstance(string name, Func<T> control, Func<T> candidate, Func<T, T, bool> comparator = null)
         {
             _name = name;
             _control = () => Task.FromResult(control());
             _candidate = () => Task.FromResult(candidate());
+            if (comparator != null)
+                _comparator = (controlResult, candidateResult) => Task.FromResult(comparator(controlResult, candidateResult));
         }
 
-        public ExperimentInstance(string name, Func<Task<T>> control, Func<Task<T>> candidate)
+        public ExperimentInstance(string name, Func<Task<T>> control, Func<Task<T>> candidate, Func<T, T, Task<bool>> comparator = null)
         {
             _name = name;
             _control = control;
             _candidate = candidate;
+            _comparator = comparator;
         }
 
         public async Task<T> Run()
@@ -48,12 +52,7 @@ namespace GitHub.Internals
                 controlResult = await Run(_control);
             }
 
-            // TODO: We need to compare that thrown exceptions are equivalent too https://github.com/github/scientist/blob/master/lib/scientist/observation.rb#L76
-            // TODO: We're going to have to be a bit more sophisticated about this.
-            bool success = 
-                controlResult.Result == null && candidateResult.Result == null
-                || controlResult.Result != null && controlResult.Result.Equals(candidateResult.Result)
-                || controlResult.Result == null && candidateResult.Result != null;
+            bool success = await ObservationsAreEquivalent(controlResult, candidateResult);
 
             // TODO: Get that duration!
             var observation = new Observation(_name, success, controlResult.Duration, candidateResult.Duration);
@@ -64,6 +63,16 @@ namespace GitHub.Internals
 
             if (controlResult.ThrownException != null) throw controlResult.ThrownException;
             return controlResult.Result;
+        }
+
+        private async Task<bool> ObservationsAreEquivalent(ExperimentResult controlResult, ExperimentResult candidateResult)
+        {
+            // TODO: We need to compare that thrown exceptions are equivalent too https://github.com/github/scientist/blob/master/lib/scientist/observation.rb#L76
+            // TODO: We're going to have to be a bit more sophisticated about this.
+            return controlResult.Result == null && candidateResult.Result == null
+                || controlResult.Result != null 
+                && (_comparator == null ? controlResult.Result.Equals(candidateResult.Result) : await _comparator(controlResult.Result, candidateResult.Result))
+                || controlResult.Result == null && candidateResult.Result != null;
         }
 
         static async Task<ExperimentResult> Run(Func<Task<T>> experimentCase)
